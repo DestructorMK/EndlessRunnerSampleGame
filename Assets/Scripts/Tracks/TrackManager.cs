@@ -45,6 +45,10 @@ public class TrackManager : MonoBehaviour
     public int speedStep = 4;
     public float laneOffset = 1.0f;
 
+    [Header("First Person Camera")]
+    // Local offset from the character collider (eye height/forward), tune live in Play mode.
+    public Vector3 firstPersonCameraOffset = new Vector3(0f, 1.6f, 0.2f);
+
     public bool invincible = false;
 
     [Header("Objects")]
@@ -210,10 +214,19 @@ public class TrackManager : MonoBehaviour
 
             characterController.Init();
             characterController.CheatInvincible(invincible);
-            
+
             //Instantiate(CharacterDatabase.GetCharacter(PlayerData.instance.characters[PlayerData.instance.usedCharacter]), Vector3.zero, Quaternion.identity);
             player.transform.SetParent(characterController.characterCollider.transform, false);
-            Camera.main.transform.SetParent(characterController.transform, true);
+
+            // First-person: camera doesn't see its own character, so hide the body mesh.
+            foreach (Renderer r in player.GetComponentsInChildren<Renderer>())
+                r.enabled = false;
+
+            // Parented to the collider (not the track-root pivot) so the camera inherits lane
+            // switches and jump/duck bob, not just forward track motion.
+            Camera.main.transform.SetParent(characterController.characterCollider.transform, false);
+            Camera.main.transform.localPosition = firstPersonCameraOffset;
+            Camera.main.transform.localRotation = Quaternion.identity;
 
             if (m_IsTutorial)
                 m_CurrentThemeData = tutorialThemeData;
