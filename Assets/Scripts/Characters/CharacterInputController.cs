@@ -36,6 +36,7 @@ public class CharacterInputController : MonoBehaviour
 	public float jumpHeight = 1.2f;
 
 	public float slideLength = 2.0f;
+	public float duckDepth = 0.8f;      // How far the FP camera dips down while ducking
 
 	[Header("Sounds")]
 	public AudioClip slideSound;
@@ -298,6 +299,18 @@ public class CharacterInputController : MonoBehaviour
         }
 
         characterCollider.transform.localPosition = Vector3.MoveTowards(characterCollider.transform.localPosition, verticalTargetPosition, laneChangeSpeed * Time.deltaTime);
+
+        // Ducking only shrinks the collider (see CharacterCollider.Slide) rather than moving its
+        // transform, so the FP camera riding that transform never dipped. Give the camera its own
+        // dip here instead of moving the collider transform, so obstacle hit detection is untouched.
+        Vector3 cameraOffset = trackManager.firstPersonCameraOffset;
+        if (m_Sliding)
+        {
+            float correctSlideLength = slideLength * (1.0f + trackManager.speedRatio);
+            float slideRatio = Mathf.Clamp01((trackManager.worldDistance - m_SlideStart) / correctSlideLength);
+            cameraOffset.y -= Mathf.Sin(slideRatio * Mathf.PI) * duckDepth;
+        }
+        Camera.main.transform.localPosition = cameraOffset;
 
         // Put blob shadow under the character.
         RaycastHit hit;
