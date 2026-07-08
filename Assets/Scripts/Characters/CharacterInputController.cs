@@ -53,6 +53,9 @@ public class CharacterInputController : MonoBehaviour
 
     protected int m_ObstacleLayer;
 
+    // Kinect input will be a second IPlayerInput implementation swapped in here later.
+    protected IPlayerInput m_PlayerInput = new KeyboardPlayerInput();
+
 	protected bool m_IsInvincible;
 	protected bool m_IsRunning;
 	
@@ -178,22 +181,19 @@ public class CharacterInputController : MonoBehaviour
 	protected void Update ()
     {
 #if UNITY_EDITOR || UNITY_STANDALONE
-        // Use key input in editor or standalone
+        // Routed through IPlayerInput so a Kinect implementation is a drop-in swap later.
         // disabled if it's tutorial and not thecurrent right tutorial level (see func TutorialMoveCheck)
 
-        if (Input.GetKeyDown(KeyCode.LeftArrow) && TutorialMoveCheck(0))
+        int laneDirection = m_PlayerInput.LaneDirection();
+        if (laneDirection != 0 && TutorialMoveCheck(0))
         {
-            ChangeLane(-1);
+            ChangeLane(laneDirection);
         }
-        else if(Input.GetKeyDown(KeyCode.RightArrow) && TutorialMoveCheck(0))
-        {
-            ChangeLane(1);
-        }
-        else if(Input.GetKeyDown(KeyCode.UpArrow) && TutorialMoveCheck(1))
+        else if(m_PlayerInput.JumpPressed() && TutorialMoveCheck(1))
         {
             Jump();
         }
-		else if (Input.GetKeyDown(KeyCode.DownArrow) && TutorialMoveCheck(2))
+		else if (m_PlayerInput.DuckPressed() && TutorialMoveCheck(2))
 		{
 			if(!m_Sliding)
 				Slide();
