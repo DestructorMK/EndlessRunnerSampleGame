@@ -20,16 +20,25 @@ public class CharacterInputController : MonoBehaviour
 	public GameObject blobShadow;
 	public float laneChangeSpeed = 1.0f;
 
-	public int maxLife = 3;
+	[Header("Cop Distance")]
+	// PRD 5.4: replaces the old binary life system. 0 = caught. Obstacle hit closes the
+	// distance, a clean run regains it.
+	public float maxCopDistance = 100f;
+	public float obstacleHitPenalty = 40f;
+	// ponytail: flat regen while running is a placeholder for the cadence-driven regen/decay
+	// the PRD describes (5.1/5.4) - swap this out once Kinect cadence input lands.
+	public float copRegenPerSecond = 0.5f;
 
 	public Consumable inventory;
 
 	public int coins { get { return m_Coins; } set { m_Coins = value; } }
 	public int premium { get { return m_Premium; } set { m_Premium = value; } }
-	public int currentLife { get { return m_CurrentLife; } set { m_CurrentLife = value; } }
+	public float copDistance { get { return m_CopDistance; } set { m_CopDistance = Mathf.Clamp(value, 0f, maxCopDistance); } }
 	public List<Consumable> consumables { get { return m_ActiveConsumables; } }
 	public bool isJumping { get { return m_Jumping; } }
 	public bool isSliding { get { return m_Sliding; } }
+	public bool isVaulting { get { return m_Vaulting; } }
+	public int currentLane { get { return m_CurrentLane; } }
 
 	[Header("Controls")]
 	public float jumpLength = 2.0f;     // Distance jumped
@@ -37,6 +46,9 @@ public class CharacterInputController : MonoBehaviour
 
 	public float slideLength = 2.0f;
 	public float duckDepth = 0.8f;      // How far the FP camera dips down while ducking
+
+	public float vaultLength = 1.5f;    // Distance vaulted - shorter/quicker hop than a jump
+	public float vaultHeight = 0.7f;
 
 	[Header("Sounds")]
 	public AudioClip slideSound;
@@ -48,7 +60,7 @@ public class CharacterInputController : MonoBehaviour
 
     protected int m_Coins;
     protected int m_Premium;
-    protected int m_CurrentLife;
+    protected float m_CopDistance;
 
     protected List<Consumable> m_ActiveConsumables = new List<Consumable>();
 
@@ -65,6 +77,9 @@ public class CharacterInputController : MonoBehaviour
 
 	protected bool m_Sliding;
 	protected float m_SlideStart;
+
+	protected bool m_Vaulting;
+	protected float m_VaultStart;
 
 	protected AudioSource m_Audio;
 
@@ -83,7 +98,7 @@ public class CharacterInputController : MonoBehaviour
     protected void Awake ()
     {
         m_Premium = 0;
-        m_CurrentLife = 0;
+        m_CopDistance = 0;
         m_Sliding = false;
         m_SlideStart = 0.0f;
 	    m_IsRunning = false;
@@ -113,7 +128,7 @@ public class CharacterInputController : MonoBehaviour
 		m_CurrentLane = k_StartingLane;
 		characterCollider.transform.localPosition = Vector3.zero;
 
-        currentLife = maxLife;
+        copDistance = maxCopDistance;
 
 		m_Audio = GetComponent<AudioSource>();
 
@@ -199,6 +214,10 @@ public class CharacterInputController : MonoBehaviour
 			if(!m_Sliding)
 				Slide();
 		}
+        else if (m_PlayerInput.VaultPressed() && TutorialMoveCheck(1))
+        {
+            Vault();
+        }
 #else
         // Use touch input on mobile
         if (Input.touchCount == 1)
@@ -298,6 +317,34 @@ public class CharacterInputController : MonoBehaviour
 			}
         }
 
+        if (m_Vaulting)
+        {
+            // Same sine-arc approach as jumping, just shorter/lower - no dedicated vault
+            // animation exists (the body mesh is hidden in FP anyway), so no animator calls here.
+            if (trackManager.isMoving)
+            {
+                float correctVaultLength = vaultLength * (1.0f + trackManager.speedRatio);
+                float ratio = (trackManager.worldDistance - m_VaultStart) / correctVaultLength;
+                if (ratio >= 1.0f)
+                {
+                    m_Vaulting = false;
+                }
+                else
+                {
+                    verticalTargetPosition.y = Mathf.Sin(ratio * Mathf.PI) * vaultHeight;
+                }
+            }
+            else if (!AudioListener.pause)
+            {
+                verticalTargetPosition.y = Mathf.MoveTowards(verticalTargetPosition.y, 0, k_GroundingSpeed * Time.deltaTime);
+                if (Mathf.Approximately(verticalTargetPosition.y, 0f))
+                    m_Vaulting = false;
+            }
+        }
+
+        if (m_IsRunning)
+            copDistance += copRegenPerSecond * Time.deltaTime;
+
         characterCollider.transform.localPosition = Vector3.MoveTowards(characterCollider.transform.localPosition, verticalTargetPosition, laneChangeSpeed * Time.deltaTime);
 
         // Ducking only shrinks the collider (see CharacterCollider.Slide) rather than moving its
@@ -335,6 +382,8 @@ public class CharacterInputController : MonoBehaviour
         {
 			if (m_Sliding)
 				StopSliding();
+			if (m_Vaulting)
+				StopVaulting();
 
 			float correctJumpLength = jumpLength * (1.0f + trackManager.speedRatio);
 			m_JumpStart = trackManager.worldDistance;
@@ -366,8 +415,10 @@ public class CharacterInputController : MonoBehaviour
 
 		    if (m_Jumping)
 		        StopJumping();
+		    if (m_Vaulting)
+		        StopVaulting();
 
-            float correctSlideLength = slideLength * (1.0f + trackManager.speedRatio); 
+            float correctSlideLength = slideLength * (1.0f + trackManager.speedRatio);
 			m_SlideStart = trackManager.worldDistance;
             float animSpeed = k_TrackSpeedToJumpAnimSpeedRatio * (trackManager.speed / correctSlideLength);
 
@@ -389,6 +440,29 @@ public class CharacterInputController : MonoBehaviour
 
 			characterCollider.Slide(false);
 		}
+	}
+
+	public void Vault()
+	{
+		if (!m_IsRunning)
+			return;
+
+		if (!m_Vaulting)
+		{
+			if (m_Sliding)
+				StopSliding();
+			if (m_Jumping)
+				StopJumping();
+
+			m_VaultStart = trackManager.worldDistance;
+			m_Audio.PlayOneShot(character.jumpSound);
+			m_Vaulting = true;
+		}
+	}
+
+	public void StopVaulting()
+	{
+		m_Vaulting = false;
 	}
 
 	public void ChangeLane(int direction)

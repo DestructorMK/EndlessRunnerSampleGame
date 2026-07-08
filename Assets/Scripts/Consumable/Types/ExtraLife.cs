@@ -4,7 +4,6 @@ using System.Collections;
 
 public class ExtraLife : Consumable
 {
-    protected const int k_MaxLives = 3;
     protected const int k_CoinValue = 10;
 
     public override string GetConsumableName()
@@ -29,7 +28,7 @@ public class ExtraLife : Consumable
 
     public override bool CanBeUsed(CharacterInputController c)
     {
-        if (c.currentLife == c.maxLife)
+        if (c.copDistance >= c.maxCopDistance)
             return false;
 
         return true;
@@ -38,8 +37,8 @@ public class ExtraLife : Consumable
     public override IEnumerator Started(CharacterInputController c)
     {
         yield return base.Started(c);
-        if (c.currentLife < k_MaxLives)
-            c.currentLife += 1;
+        if (c.copDistance < c.maxCopDistance)
+            c.copDistance += c.obstacleHitPenalty;
 		else
             c.coins += k_CoinValue;
     }

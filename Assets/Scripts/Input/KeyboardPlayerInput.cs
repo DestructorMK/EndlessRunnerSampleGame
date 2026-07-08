@@ -20,4 +20,9 @@ public class KeyboardPlayerInput : IPlayerInput
     {
         return Input.GetKeyDown(KeyCode.DownArrow);
     }
+
+    public bool VaultPressed()
+    {
+        return Input.GetKeyDown(KeyCode.Space);
+    }
 }

@@ -30,10 +30,11 @@ public class GameState : AState
     public Text premiumText;
     public Text scoreText;
 	public Text distanceText;
+	public Text copDistanceText;
     public Text multiplierText;
 	public Text countdownText;
     public RectTransform powerupZone;
-	public RectTransform lifeRectTransform;
+	public RectTransform lifeRectTransform; // repurposed: 3 children now used as lane indicators
 
 	public RectTransform pauseMenu;
 	public RectTransform wholeUI;
@@ -67,7 +68,7 @@ public class GameState : AState
     protected bool m_Finished;
     protected float m_TimeSinceStart;
     protected List<PowerupIcon> m_PowerupIcons = new List<PowerupIcon>();
-	protected Image[] m_LifeHearts;
+	protected Image[] m_LaneIndicators;
 
     protected RectTransform m_CountdownRectTransform;
     protected bool m_WasMoving;
@@ -75,7 +76,7 @@ public class GameState : AState
     protected bool m_AdsInitialised = false;
     protected bool m_GameoverSelectionDone = false;
 
-    protected int k_MaxLives = 3;
+    protected int k_LaneCount = 3;
 
     protected bool m_IsTutorial; //Tutorial is a special run that don't chance section until the tutorial step is "validated".
     protected int m_TutorialClearedObstacle = 0;
@@ -89,10 +90,10 @@ public class GameState : AState
     {
         m_CountdownRectTransform = countdownText.GetComponent<RectTransform>();
 
-        m_LifeHearts = new Image[k_MaxLives];
-        for (int i = 0; i < k_MaxLives; ++i)
+        m_LaneIndicators = new Image[k_LaneCount];
+        for (int i = 0; i < k_LaneCount; ++i)
         {
-            m_LifeHearts[i] = lifeRectTransform.GetChild(i).GetComponent<Image>();
+            m_LaneIndicators[i] = lifeRectTransform.GetChild(i).GetComponent<Image>();
         }
 
         if (MusicPlayer.instance.GetStem(0) != gameTheme)
@@ -131,7 +132,7 @@ public class GameState : AState
         if (!trackManager.isRerun)
         {
             m_TimeSinceStart = 0;
-            trackManager.characterController.currentLife = trackManager.characterController.maxLife;
+            trackManager.characterController.copDistance = trackManager.characterController.maxCopDistance;
         }
 
         currentModifier.OnRunStart(this);
@@ -213,7 +214,7 @@ public class GameState : AState
 
             m_TimeSinceStart += Time.deltaTime;
 
-            if (chrCtrl.currentLife <= 0)
+            if (chrCtrl.copDistance <= 0)
             {
                 pauseButton.gameObject.SetActive(false);
                 chrCtrl.CleanConsumable();
@@ -335,18 +336,12 @@ public class GameState : AState
         coinText.text = trackManager.characterController.coins.ToString();
         premiumText.text = trackManager.characterController.premium.ToString();
 
-		for (int i = 0; i < 3; ++i)
+		for (int i = 0; i < k_LaneCount; ++i)
 		{
-
-			if(trackManager.characterController.currentLife > i)
-			{
-				m_LifeHearts[i].color = Color.white;
-			}
-			else
-			{
-				m_LifeHearts[i].color = Color.black;
-			}
+			m_LaneIndicators[i].color = trackManager.characterController.currentLane == i ? Color.white : Color.black;
 		}
+
+		copDistanceText.text = "Cop : " + Mathf.CeilToInt(trackManager.characterController.copDistance) + "m";
 
         scoreText.text = trackManager.score.ToString();
         multiplierText.text = "x " + trackManager.multiplier;
@@ -442,7 +437,8 @@ public class GameState : AState
 
     public void SecondWind()
     {
-        trackManager.characterController.currentLife = 1;
+        // Matches the old "1 life" second-wind: just enough distance to survive one more hit.
+        trackManager.characterController.copDistance = trackManager.characterController.obstacleHitPenalty;
         trackManager.isRerun = true;
         StartGame();
     }

@@ -9,4 +9,5 @@ public interface IPlayerInput
     int LaneDirection();
     bool JumpPressed();
     bool DuckPressed();
+    bool VaultPressed();
 }

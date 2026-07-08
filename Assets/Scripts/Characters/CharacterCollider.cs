@@ -148,12 +148,12 @@ public class CharacterCollider : MonoBehaviour
             }
             else
             {
-                controller.currentLife -= 1;
+                controller.copDistance -= controller.obstacleHitPenalty;
             }
 
             controller.character.animator.SetTrigger(s_HitHash);
 
-			if (controller.currentLife > 0)
+			if (controller.copDistance > 0)
 			{
 				m_Audio.PlayOneShot(controller.character.hitSound);
                 SetInvincible ();

@@ -38,7 +38,7 @@ public class LimitedLengthRun : Modifier
 	{
 		if(state.trackManager.worldDistance >= distance)
 		{
-			state.trackManager.characterController.currentLife = 0;
+			state.trackManager.characterController.copDistance = 0;
 		}
 	}
 
@@ -81,8 +81,10 @@ public class SingleLifeRun : Modifier
 {
 	public override void OnRunTick(GameState state)
 	{
-		if (state.trackManager.characterController.currentLife > 1)
-			state.trackManager.characterController.currentLife = 1;
+		// One hit and you're caught: never let cop distance bank more than a single hit's worth.
+		CharacterInputController c = state.trackManager.characterController;
+		if (c.copDistance > c.obstacleHitPenalty)
+			c.copDistance = c.obstacleHitPenalty;
 	}
 
 
